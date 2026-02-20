@@ -5,12 +5,12 @@ class Api::V1::CoursesController < Api::V1::BaseController
   before_action :validate_teacher_limit, only: [:create, :update]
 
   def index
-    @courses = Course.includes(:teacher, :department, :enrollments).all
-    render json: @courses, include: [:teacher, :department]
+    @courses = Course.includes(teacher: [:user, :department], department: []).all
+    render json: @courses, include: { teacher: { include: [:user, :department] }, department: {} }
   end
 
   def show
-    render json: @course, include: [:teacher, :department, :students]
+    render json: @course, include: { teacher: { include: [:user, :department] }, department: {}, students: {} }
   end
 
   def create
@@ -25,7 +25,8 @@ class Api::V1::CoursesController < Api::V1::BaseController
 
   def update
     if @course.update(course_params)
-      render json: @course
+      @course.reload
+      render json: @course, include: { teacher: { include: [:user, :department] }, department: {} }
     else
       render json: { errors: @course.errors.full_messages }, status: :unprocessable_entity
     end
