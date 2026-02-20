@@ -1,29 +1,130 @@
 class Api::V1::EnrollmentsController < Api::V1::BaseController
-  before_action :set_enrollment, only: [:show, :update, :destroy]
+  before_action :set_enrollment, only: [:show, :update, :approve, :reject, :complete, :drop, :withdraw]
   before_action :authenticate_user!
-  before_action :validate_enrollment, only: [:create]
+  before_action :require_admin!, only: [:approve, :reject, :complete, :drop, :create]
+  before_action :validate_enrollment_request, only: [:request_enrollment]
 
   def index
-    @enrollments = Enrollment.includes(:student, :course).all
-    render json: @enrollments, include: [:student, :course]
+    @enrollments = Enrollment.includes(student: [:user, :department], course: [:teacher, :department]).all
+    render json: @enrollments, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
   end
 
   def show
-    render json: @enrollment, include: [:student, :course]
+    render json: @enrollment, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
   end
 
-  def create
-    @enrollment = Enrollment.new(enrollment_params)
+  # Student initiates enrollment request
+  def request_enrollment
+    student = current_user.student
     
-    if @enrollment.save
-      render json: @enrollment, status: :created, include: [:student, :course]
+    unless student
+      return render json: { error: "Only students can request enrollments" }, status: :forbidden
+    end
+
+    @enrollment = Enrollment.request_enrollment(
+      student_id: student.id,
+      course_id: params[:course_id]
+    )
+    
+    if @enrollment.persisted?
+      @enrollment.reload
+      render json: @enrollment, status: :created, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
     else
       render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
     end
   end
 
+  # Admin creates enrollment directly (approved status)
+  def create
+    unless current_user.admin?
+      return render json: { error: "Only admins can create enrollments directly" }, status: :forbidden
+    end
+
+    @enrollment = Enrollment.new(enrollment_params)
+    @enrollment.status = :approved # Admin-created enrollments are auto-approved
+    
+    if @enrollment.save
+      @enrollment.reload
+      render json: @enrollment, status: :created, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
+    else
+      render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
+  # Admin approves pending enrollment
+  def approve
+    if @enrollment.pending?
+      if @enrollment.approve!
+        @enrollment.reload
+        render json: @enrollment, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
+      else
+        render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
+      end
+    else
+      render json: { error: "Only pending enrollments can be approved" }, status: :unprocessable_entity
+    end
+  end
+
+  # Admin rejects pending enrollment
+  def reject
+    if @enrollment.pending?
+      if @enrollment.reject!
+        @enrollment.reload
+        render json: @enrollment, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
+      else
+        render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
+      end
+    else
+      render json: { error: "Only pending enrollments can be rejected" }, status: :unprocessable_entity
+    end
+  end
+
+  # Admin marks enrollment as completed
+  def complete
+    if @enrollment.approved?
+      if @enrollment.mark_completed!
+        @enrollment.reload
+        render json: @enrollment, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
+      else
+        render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
+      end
+    else
+      render json: { error: "Only approved enrollments can be marked as completed" }, status: :unprocessable_entity
+    end
+  end
+
+  # Admin drops student from course
+  def drop
+    if @enrollment.approved?
+      if @enrollment.drop!
+        @enrollment.reload
+        render json: @enrollment, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
+      else
+        render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
+      end
+    else
+      render json: { error: "Only approved enrollments can be dropped" }, status: :unprocessable_entity
+    end
+  end
+
+  # Student withdraws from approved enrollment
+  def withdraw
+    student = current_user.student
+    
+    unless student && @enrollment.student_id == student.id
+      return render json: { error: "You can only withdraw from your own enrollments" }, status: :forbidden
+    end
+
+    if @enrollment.withdraw!
+      @enrollment.reload
+      render json: @enrollment, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
+    else
+      render json: { error: "Only approved enrollments can be withdrawn" }, status: :unprocessable_entity
+    end
+  end
+
   def update
-    # Only allow status updates, not student/course changes
+    # Only allow status updates to completed/dropped, not student/course changes
     if enrollment_params.keys.any? { |k| ['student_id', 'course_id'].include?(k) }
       return render json: { error: "Cannot change student or course after enrollment. Drop and re-enroll instead." }, status: :unprocessable_entity
     end
@@ -36,18 +137,10 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
   end
 
   def destroy
-    # Check if there are grades associated
-    if @enrollment.student.grades.exists?(course_id: @enrollment.course_id)
-      return render json: { 
-        error: "Cannot delete enrollment with existing grades. Change status to 'dropped' instead." 
-      }, status: :unprocessable_entity
-    end
-    
-    if @enrollment.destroy
-      head :no_content
-    else
-      render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
-    end
+    # Enrollments cannot be deleted - only status can be changed
+    render json: { 
+      error: "Cannot delete enrollments. Use status changes (reject, drop, withdraw) instead." 
+    }, status: :forbidden
   end
 
   private
@@ -58,46 +151,48 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
     render json: { error: "Enrollment not found" }, status: :not_found
   end
 
+  def require_admin!
+    unless current_user.admin?
+      render json: { error: "Admin access required" }, status: :forbidden
+    end
+  end
+
   def enrollment_params
     params.require(:enrollment).permit(:student_id, :course_id, :status)
   end
 
-  def validate_enrollment
-    student = Student.find_by(id: params[:enrollment][:student_id])
-    course = Course.find_by(id: params[:enrollment][:course_id])
-    
-    unless student
-      return render json: { error: "Student not found" }, status: :not_found
-    end
+  def validate_enrollment_request
+    course = Course.find_by(id: params[:course_id])
+    student = current_user.student
     
     unless course
       return render json: { error: "Course not found" }, status: :not_found
     end
+
+    unless student
+      return render json: { error: "Student record not found" }, status: :not_found
+    end
     
     # Check semester limit
     if student.semester.present? && student.semester > 12
-      return render json: { error: "Student has exceeded maximum semester limit (12)" }, status: :unprocessable_entity
-    end
-    
-    # Check credit hours limit
-    unless student.can_enroll_in_course?(course)
-      max_credits = student.max_credit_per_semester || 21
-      current_credits = student.current_semester_credits
-      
-      return render json: { 
-        error: "Enrollment would exceed maximum credit hours for this semester",
-        max_credits: max_credits,
-        current_credits: current_credits,
-        course_credits: course.credit_hours,
-        total_would_be: current_credits + course.credit_hours
-      }, status: :unprocessable_entity
+      return render json: { error: "You have exceeded maximum semester limit (12)" }, status: :unprocessable_entity
     end
     
     # Check for duplicate enrollment
-    if Enrollment.exists?(student_id: student.id, course_id: course.id, status: [:enrolled, :completed])
+    if Enrollment.exists?(student_id: student.id, course_id: course.id, status: [:pending, :approved, :completed])
       return render json: { 
-        error: "Student is already enrolled in this course or has completed it" 
+        error: "You already have a pending/approved enrollment or have completed this course" 
       }, status: :unprocessable_entity
+    end
+
+    # Check credit hours limit - will be validated when admin approves
+    # We allow the request but warn about potential issues
+    max_credits = student.max_credit_per_semester || 21
+    current_credits = student.current_semester_credits
+    
+    if (current_credits + course.credit_hours) > max_credits
+      # Allow request but it will need admin review
+      Rails.logger.info "Student #{student.id} requesting enrollment that would exceed credit limit"
     end
   end
 end
