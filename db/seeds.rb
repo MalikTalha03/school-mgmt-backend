@@ -14,10 +14,12 @@ puts "Seeding database with mock data..."
 puts "Creating admin user..."
 
 admin_user = User.find_or_create_by!(email: "admin@gmail.com") do |u|
+  u.name = "Admin User"
   u.password = "12345678"
   u.password_confirmation = "12345678"
   u.role = :admin
 end
+admin_user.update!(name: "Admin User") if admin_user.name.blank?
 
 puts "✓ Created admin user: admin@gmail.com"
 
@@ -51,10 +53,12 @@ teachers_data = [
 teachers = []
 teachers_data.each do |data|
   user = User.find_or_create_by!(email: data[:email]) do |u|
+    u.name = data[:name]
     u.password = "password123"
     u.password_confirmation = "password123"
     u.role = :teacher
   end
+  user.update!(name: data[:name]) if user.name.blank?
   
   teacher = Teacher.find_or_create_by!(user: user) do |t|
     t.department = data[:dept]
@@ -62,29 +66,31 @@ teachers_data.each do |data|
   end
   
   teachers << teacher
-  puts "  ✓ Created teacher: #{data[:email]}"
+  puts "  ✓ Created teacher: #{data[:name]} (#{data[:email]})"
 end
 
 # ===== USERS & STUDENTS =====
 puts "Creating students..."
 
 students_data = [
-  { email: "student1@school.edu", dept: cs_dept, semester: 4 },
-  { email: "student2@school.edu", dept: cs_dept, semester: 3 },
-  { email: "student3@school.edu", dept: cs_dept, semester: 5 },
-  { email: "student4@school.edu", dept: ee_dept, semester: 2 },
-  { email: "student5@school.edu", dept: ee_dept, semester: 6 },
-  { email: "student6@school.edu", dept: se_dept, semester: 1 },
-  { email: "student7@school.edu", dept: se_dept, semester: 12 }, # Max semester
+  { email: "student1@school.edu", name: "Ali Raza", dept: cs_dept, semester: 4 },
+  { email: "student2@school.edu", name: "Sara Ahmed", dept: cs_dept, semester: 3 },
+  { email: "student3@school.edu", name: "Omar Khan", dept: cs_dept, semester: 5 },
+  { email: "student4@school.edu", name: "Ayesha Malik", dept: ee_dept, semester: 2 },
+  { email: "student5@school.edu", name: "Bilal Hassan", dept: ee_dept, semester: 6 },
+  { email: "student6@school.edu", name: "Zainab Ali", dept: se_dept, semester: 1 },
+  { email: "student7@school.edu", name: "Hamza Iqbal", dept: se_dept, semester: 12 }, # Max semester
 ]
 
 students = []
 students_data.each do |data|
   user = User.find_or_create_by!(email: data[:email]) do |u|
+    u.name = data[:name]
     u.password = "password123"
     u.password_confirmation = "password123"
     u.role = :student
   end
+  user.update!(name: data[:name]) if user.name.blank?
   
   student = Student.find_or_create_by!(user: user) do |s|
     s.department = data[:dept]
@@ -94,7 +100,7 @@ students_data.each do |data|
   end
   
   students << student
-  puts "  ✓ Created student: #{data[:email]} (Semester: #{data[:semester]})"
+  puts "  ✓ Created student: #{data[:name]} (#{data[:email]}) - Semester: #{data[:semester]}"
 end
 
 # ===== COURSES =====
@@ -184,7 +190,7 @@ enrollment_configs.each do |config|
     
     enrollment = Enrollment.find_by(student_id: student.id, course_id: course.id)
     unless enrollment
-      enrollment = Enrollment.create!(student_id: student.id, course_id: course.id, status: 0) # 0 = enrolled
+      enrollment = Enrollment.create!(student_id: student.id, course_id: course.id, status: 1) # 1 = approved
     end
     
     puts "  ✓ Enrolled #{student.user.email} in #{course.title} (#{course.credit_hours} credits)"
@@ -199,14 +205,13 @@ end
 
 # ===== GRADES & GRADE ITEMS =====
 # Rules:
-# - Can't have final marks until:
-#   1. At least 1 midterm mark
-#   2. At least 1 assignment mark
-#   3. At least 1 quiz mark
+# - Must have at least 2 assignments and 2 quizzes before midterm
+# - Must have at least 4 assignments, 4 quizzes, and midterm before final
 # - Final marks max: 50 or 100
-# - Assignment max: 20 (in some cases can be variable)
-# - Quiz max: 20 (in some cases can be variable)
+# - Assignment max: 20
+# - Quiz max: 20
 # - Midterm max: typically 30
+# - Only one midterm and one final per student
 
 puts "\nCreating grades and grade items..."
 
@@ -216,32 +221,47 @@ Enrollment.all.each do |enrollment|
     grade = Grade.create!(student_id: enrollment.student_id, course_id: enrollment.course_id)
   end
   
-  # Add midterm (required) - category: 2
-  midterm = GradeItem.find_by(grade_id: grade.id, category: 2)
-  unless midterm
-    midterm = GradeItem.create!(grade_id: grade.id, category: 2, max_marks: 30, obtained_marks: rand(15..29))
+  puts "  ✓ Creating grades for #{enrollment.student.user.email} in #{enrollment.course.title}"
+  
+  # Create 4 assignments (category: 0) - required before midterm
+  4.times do |i|
+    unless grade.grade_items.where(category: 0).count > i
+      assignment = GradeItem.create!(
+        grade_id: grade.id, 
+        category: 0, 
+        max_marks: 20, 
+        obtained_marks: rand(10..20)
+      )
+      puts "    - Assignment #{i+1}: #{assignment.obtained_marks}/#{assignment.max_marks}"
+    end
   end
   
-  # Add assignment (required) - category: 0
-  assignment1 = GradeItem.find_by(grade_id: grade.id, category: 0)
-  unless assignment1
-    assignment1 = GradeItem.create!(grade_id: grade.id, category: 0, max_marks: 20, obtained_marks: rand(10..20))
+  # Create 4 quizzes (category: 1) - required before midterm
+  4.times do |i|
+    unless grade.grade_items.where(category: 1).count > i
+      quiz = GradeItem.create!(
+        grade_id: grade.id, 
+        category: 1, 
+        max_marks: 20, 
+        obtained_marks: rand(10..20)
+      )
+      puts "    - Quiz #{i+1}: #{quiz.obtained_marks}/#{quiz.max_marks}"
+    end
   end
   
-  # Add quiz (required) - category: 1
-  quiz = GradeItem.find_by(grade_id: grade.id, category: 1)
-  unless quiz
-    quiz = GradeItem.create!(grade_id: grade.id, category: 1, max_marks: 20, obtained_marks: rand(10..20))
+  # Add midterm (category: 2) - can only be added after 2 assignments and 2 quizzes
+  unless grade.grade_items.exists?(category: 2)
+    midterm = GradeItem.create!(
+      grade_id: grade.id, 
+      category: 2, 
+      max_marks: 30, 
+      obtained_marks: rand(15..29)
+    )
+    puts "    - Midterm: #{midterm.obtained_marks}/#{midterm.max_marks}"
   end
   
-  puts "  ✓ Added grades for #{enrollment.student.user.email} in #{enrollment.course.title}"
-  puts "    - Midterm: #{midterm.obtained_marks}/#{midterm.max_marks}"
-  puts "    - Assignment: #{assignment1.obtained_marks}/#{assignment1.max_marks}"
-  puts "    - Quiz: #{quiz.obtained_marks}/#{quiz.max_marks}"
-  
-  # Now that all conditions are met, add final marks - category: 3
-  final = GradeItem.find_by(grade_id: grade.id, category: 3)
-  unless final
+  # Add final marks (category: 3) - can only be added after 4 assignments, 4 quizzes, and midterm
+  unless grade.grade_items.exists?(category: 3)
     final_max = [50, 100].sample
     final_mark = if final_max == 50
                    rand(25..49) # 25-49 out of 50
@@ -249,10 +269,16 @@ Enrollment.all.each do |enrollment|
                    rand(50..99) # 50-99 out of 100
                  end
     
-    final = GradeItem.create!(grade_id: grade.id, category: 3, max_marks: final_max, obtained_marks: final_mark)
+    final = GradeItem.create!(
+      grade_id: grade.id, 
+      category: 3, 
+      max_marks: final_max, 
+      obtained_marks: final_mark
+    )
+    puts "    - Final: #{final.obtained_marks}/#{final.max_marks}"
   end
   
-  puts "    - Final: #{final.obtained_marks}/#{final.max_marks}"
+  puts "  ✓ Completed all grades for #{enrollment.student.user.email}"
 end
 
 puts "\n" + "="*60
@@ -271,10 +297,12 @@ puts "\nBusiness Rules Validated:"
 puts "  ✓ Teacher course limit (max 3): Enforced in seed data"
 puts "  ✓ Student credit hours limit (max 21/semester): Enforced in seed data"
 puts "  ✓ Student max semesters (12): Seeded with max semester student"
-puts "  ✓ Final marks require: midterm + assignment + quiz: All present in grades"
+puts "  ✓ Midterm requires: 2 assignments + 2 quizzes: All present in grades"
+puts "  ✓ Final requires: 4 assignments + 4 quizzes + midterm: All present in grades"
 puts "  ✓ Final marks max (50 or 100): Randomized in seed data"
 puts "  ✓ Assignment max (20): Enforced in seed data"
 puts "  ✓ Quiz max (20): Enforced in seed data"
+puts "  ✓ Auto-complete enrollment on final upload: Implemented in GradeItem model"
 
 puts "\n📝 Test Credentials:"
 puts "  Admin: admin@gmail.com / 12345678 (created earlier)"
