@@ -1,10 +1,9 @@
 class Api::V1::GradesController < Api::V1::BaseController
   before_action :set_grade, only: [:show, :update, :destroy]
-  before_action :authenticate_user!
   before_action :validate_grade_prerequisites, only: [:create]
 
   def index
-    @grades = Grade.includes(:student, :course, :grade_items).all
+    @grades = Grade.includes(:student, :course, :grade_items)
     render json: @grades.map { |grade|
       grade.as_json(include: {
         student: { only: [:id], include: { user: { only: [:email] } } },

@@ -1,6 +1,5 @@
 class Api::V1::CoursesController < Api::V1::BaseController
   before_action :set_course, only: [:show, :update, :destroy]
-  before_action :authenticate_user!
   before_action :validate_credit_hours, only: [:create, :update]
   before_action :validate_teacher_limit, only: [:create, :update]
 
@@ -34,10 +33,10 @@ class Api::V1::CoursesController < Api::V1::BaseController
 
   def destroy
     # Check for active enrollments
-    if @course.enrollments.where(status: :enrolled).any?
+    if @course.enrollments.where(status: [:pending, :approved]).any?
       return render json: { 
         error: "Cannot delete course with active enrollments.",
-        active_enrollments: @course.enrollments.where(status: :enrolled).count
+        active_enrollments: @course.enrollments.where(status: [:pending, :approved]).count
       }, status: :unprocessable_entity
     end
     

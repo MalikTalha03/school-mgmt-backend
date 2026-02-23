@@ -1,6 +1,5 @@
 class Api::V1::DepartmentsController < Api::V1::BaseController
   before_action :set_department, only: [:show, :update, :destroy]
-  before_action :authenticate_user!
 
   def index
     @departments = Department.includes(:courses, :teachers, :students).all

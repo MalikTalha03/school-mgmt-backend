@@ -1,6 +1,5 @@
 class Api::V1::StudentsController < Api::V1::BaseController
   before_action :set_student, only: [:show, :update, :destroy, :promote_semester]
-  before_action :authenticate_user!
   before_action :require_admin!, only: [:promote_semester]
 
   def index

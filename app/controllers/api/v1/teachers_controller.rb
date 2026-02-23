@@ -1,6 +1,5 @@
 class Api::V1::TeachersController < Api::V1::BaseController
   before_action :set_teacher, only: [:show, :update, :destroy]
-  before_action :authenticate_user!
 
   def index
     @teachers = Teacher.includes(:department, :user, :courses).all

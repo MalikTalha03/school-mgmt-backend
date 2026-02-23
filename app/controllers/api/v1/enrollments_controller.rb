@@ -1,11 +1,10 @@
 class Api::V1::EnrollmentsController < Api::V1::BaseController
   before_action :set_enrollment, only: [:show, :update, :approve, :reject, :complete, :drop, :withdraw]
-  before_action :authenticate_user!
   before_action :require_admin!, only: [:approve, :reject, :complete, :drop, :create, :announce_results]
   before_action :validate_enrollment_request, only: [:request_enrollment]
 
   def index
-    @enrollments = Enrollment.includes(student: [:user, :department], course: [:teacher, :department]).all
+    @enrollments = Enrollment.includes(student: [:user, :department], course: [:teacher, :department])
     render json: @enrollments, include: { 
       student: { include: [:user, :department] }, 
       course: { include: [:teacher, :department] } 
@@ -39,10 +38,6 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
 
   # Admin creates enrollment directly (approved status)
   def create
-    unless current_user.admin?
-      return render json: { error: "Only admins can create enrollments directly" }, status: :forbidden
-    end
-
     @enrollment = Enrollment.new(enrollment_params)
     @enrollment.status = :approved # Admin-created enrollments are auto-approved
     
@@ -129,10 +124,6 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
   # Admin announces results: checks all approved enrollments are fully graded,
   # then promotes student semesters and marks enrollments as completed.
   def announce_results
-    unless current_user.admin?
-      return render json: { error: "Admin access required" }, status: :forbidden
-    end
-
     approved_enrollments = Enrollment.includes(:course, student: :user).where(status: :approved)
 
     if approved_enrollments.empty?
@@ -197,13 +188,6 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
     else
       render json: { errors: @enrollment.errors.full_messages }, status: :unprocessable_entity
     end
-  end
-
-  def destroy
-    # Enrollments cannot be deleted - only status can be changed
-    render json: { 
-      error: "Cannot delete enrollments. Use status changes (reject, drop, withdraw) instead." 
-    }, status: :forbidden
   end
 
   private
