@@ -12,7 +12,7 @@ class Student < ApplicationRecord
   validates :max_credit_per_semester, numericality: { less_than_or_equal_to: 21, greater_than: 0 }, allow_nil: true
 
   def current_semester_credits
-    enrollments.joins(:course).where(status: :approved).sum('courses.credit_hours')
+    enrollments.joins(:course).where(status: [:approved, :pending]).sum('courses.credit_hours')
   end
 
   def can_enroll_in_course?(course)

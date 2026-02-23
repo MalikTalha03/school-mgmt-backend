@@ -248,14 +248,16 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
       }, status: :unprocessable_entity
     end
 
-    # Check credit hours limit - will be validated when admin approves
-    # We allow the request but warn about potential issues
+    # Enforce credit hours limit: count approved + pending enrollments
     max_credits = student.max_credit_per_semester || 21
     current_credits = student.current_semester_credits
-    
+
     if (current_credits + course.credit_hours) > max_credits
-      # Allow request but it will need admin review
-      Rails.logger.info "Student #{student.id} requesting enrollment that would exceed credit limit"
+      remaining = max_credits - current_credits
+      return render json: {
+        error: "Credit hour limit exceeded. You have #{current_credits}/#{max_credits} credit hours (approved + pending). " \
+               "This course requires #{course.credit_hours} credit hours but you only have #{[remaining, 0].max} remaining."
+      }, status: :unprocessable_entity
     end
   end
 end
