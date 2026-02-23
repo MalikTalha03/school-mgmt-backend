@@ -10,10 +10,12 @@ class Enrollment < ApplicationRecord
 
   # Students can only create pending enrollments
   def self.request_enrollment(student_id:, course_id:)
+    student = Student.find(student_id)
     create(
       student_id: student_id,
       course_id: course_id,
-      status: :pending
+      status: :pending,
+      semester: student.semester
     )
   end
 

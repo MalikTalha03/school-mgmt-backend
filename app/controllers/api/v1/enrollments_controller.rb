@@ -40,6 +40,7 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
   def create
     @enrollment = Enrollment.new(enrollment_params)
     @enrollment.status = :approved # Admin-created enrollments are auto-approved
+    @enrollment.semester ||= Student.find_by(id: @enrollment.student_id)&.semester
 
     if @enrollment.save
       @enrollment.reload
@@ -205,7 +206,7 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
   end
 
   def enrollment_params
-    params.require(:enrollment).permit(:student_id, :course_id, :status)
+    params.require(:enrollment).permit(:student_id, :course_id, :status, :semester)
   end
 
   def validate_enrollment_request
