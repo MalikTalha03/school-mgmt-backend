@@ -1,12 +1,15 @@
 class Api::V1::EnrollmentsController < Api::V1::BaseController
   before_action :set_enrollment, only: [:show, :update, :approve, :reject, :complete, :drop, :withdraw]
   before_action :authenticate_user!
-  before_action :require_admin!, only: [:approve, :reject, :complete, :drop, :create]
+  before_action :require_admin!, only: [:approve, :reject, :complete, :drop, :create, :announce_results]
   before_action :validate_enrollment_request, only: [:request_enrollment]
 
   def index
     @enrollments = Enrollment.includes(student: [:user, :department], course: [:teacher, :department]).all
-    render json: @enrollments, include: { student: { include: [:user, :department] }, course: { include: [:teacher, :department] } }
+    render json: @enrollments, include: { 
+      student: { include: [:user, :department] }, 
+      course: { include: [:teacher, :department] } 
+    }
   end
 
   def show
@@ -121,6 +124,66 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
     else
       render json: { error: "Only approved enrollments can be withdrawn" }, status: :unprocessable_entity
     end
+  end
+
+  # Admin announces results: checks all approved enrollments are fully graded,
+  # then promotes student semesters and marks enrollments as completed.
+  def announce_results
+    unless current_user.admin?
+      return render json: { error: "Admin access required" }, status: :forbidden
+    end
+
+    approved_enrollments = Enrollment.includes(:course, student: :user).where(status: :approved)
+
+    if approved_enrollments.empty?
+      return render json: {
+        success: false,
+        message: "No active enrollments found to announce results for"
+      }, status: :unprocessable_entity
+    end
+
+    # Detect courses that have students without a final grade_item
+    incomplete_courses = {}
+
+    approved_enrollments.each do |enrollment|
+      grade = Grade.find_by(student_id: enrollment.student_id, course_id: enrollment.course_id)
+      has_final = grade && GradeItem.exists?(grade_id: grade.id, category: :final)
+
+      unless has_final
+        course = enrollment.course
+        incomplete_courses[course.id] ||= { id: course.id, title: course.title, incomplete_count: 0 }
+        incomplete_courses[course.id][:incomplete_count] += 1
+      end
+    end
+
+    if incomplete_courses.any?
+      return render json: {
+        success: false,
+        message: "Some grades are incomplete",
+        incomplete_courses: incomplete_courses.values
+      }
+    end
+
+    # All graded — promote semesters and complete enrollments
+    student_ids = approved_enrollments.map(&:student_id).uniq
+    promoted_count = 0
+
+    Student.where(id: student_ids).each do |student|
+      if student.semester < 12
+        student.update_column(:semester, student.semester + 1)
+        promoted_count += 1
+      end
+    end
+
+    completed_count = approved_enrollments.count
+    Enrollment.where(status: :approved).update_all(status: 3) # 3 = completed
+
+    render json: {
+      success: true,
+      message: "Results announced successfully!",
+      promoted_count: promoted_count,
+      completed_count: completed_count
+    }
   end
 
   def update
