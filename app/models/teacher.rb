@@ -3,9 +3,9 @@ class Teacher < ApplicationRecord
   belongs_to :department
 
   has_many :courses, dependent: :restrict_with_error
-  
+
   enum :designation, { visiting_faculty: 0, lecturer: 1, assistant_professor: 2, associate_professor: 3, professor: 4 }
-  
+
   validates :user_id, uniqueness: true, presence: true
   validates :department_id, presence: true
   validates :designation, presence: true

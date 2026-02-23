@@ -1,8 +1,8 @@
 Rails.application.routes.draw do
   # config/routes.rb
   devise_for :users, controllers: {
-    registrations: 'users/registrations',
-    sessions: 'users/sessions'
+    registrations: "users/registrations",
+    sessions: "users/sessions"
   }
 
   namespace :api do
@@ -15,7 +15,7 @@ Rails.application.routes.draw do
       end
       resources :teachers
       resources :courses
-      resources :enrollments, except: [:destroy] do
+      resources :enrollments, except: [ :destroy ] do
         member do
           patch :approve
           patch :reject

@@ -1,14 +1,14 @@
 class Api::V1::StudentsController < Api::V1::BaseController
-  before_action :set_student, only: [:show, :update, :destroy, :promote_semester]
-  before_action :require_admin!, only: [:promote_semester]
+  before_action :set_student, only: [ :show, :update, :destroy, :promote_semester ]
+  before_action :require_admin!, only: [ :promote_semester ]
 
   def index
     @students = Student.includes(:department, :user).all
-    render json: @students, include: [:department, :user]
+    render json: @students, include: [ :department, :user ]
   end
 
   def show
-    render json: @student, include: [:department, :user]
+    render json: @student, include: [ :department, :user ]
   end
 
   def create
@@ -37,8 +37,8 @@ class Api::V1::StudentsController < Api::V1::BaseController
     # Create user with default password
     user = User.new(
       email: email,
-      password: '12345678',
-      password_confirmation: '12345678',
+      password: "12345678",
+      password_confirmation: "12345678",
       role: :student,
       name: name
     )
@@ -52,7 +52,7 @@ class Api::V1::StudentsController < Api::V1::BaseController
       )
 
       if @student.save
-        render json: @student.as_json(include: [:department, :user]), status: :created
+        render json: @student.as_json(include: [ :department, :user ]), status: :created
       else
         user.destroy # Rollback user creation
         render json: { errors: @student.errors.full_messages }, status: :unprocessable_entity
@@ -67,7 +67,7 @@ class Api::V1::StudentsController < Api::V1::BaseController
     if student_params[:semester].present? && student_params[:semester].to_i > 12
       return render json: { error: "Semester cannot exceed 12" }, status: :unprocessable_entity
     end
-    
+
     if @student.update(student_params)
       render json: @student
     else
@@ -87,21 +87,21 @@ class Api::V1::StudentsController < Api::V1::BaseController
     if @student.can_promote_to_next_semester?
       if @student.promote_to_next_semester!
         @student.reload
-        render json: @student, include: [:department, :user]
+        render json: @student, include: [ :department, :user ]
       else
         render json: { error: "Failed to promote student", errors: @student.errors.full_messages }, status: :unprocessable_entity
       end
     else
       active_count = @student.enrollments.where(status: :approved).count
       pending_count = @student.enrollments.where(status: :pending).count
-      
+
       reasons = []
       reasons << "Student has #{active_count} active enrollment(s)" if active_count > 0
       reasons << "Student has #{pending_count} pending enrollment(s)" if pending_count > 0
       reasons << "Student is already in final semester (12)" if @student.semester && @student.semester >= 12
-      
-      render json: { 
-        error: "Cannot promote student to next semester", 
+
+      render json: {
+        error: "Cannot promote student to next semester",
         reasons: reasons,
         active_enrollments: active_count,
         pending_enrollments: pending_count,
@@ -130,27 +130,27 @@ class Api::V1::StudentsController < Api::V1::BaseController
 
   def generate_student_email(name, department_id)
     # Clean name: remove spaces, special chars, convert to lowercase
-    clean_name = name.downcase.gsub(/[^a-z0-9]/, '')
-    
+    clean_name = name.downcase.gsub(/[^a-z0-9]/, "")
+
     # Get department code
     dept = Department.find_by(id: department_id)
-    dept_code = dept&.code&.downcase || 'dept'
-    
+    dept_code = dept&.code&.downcase || "dept"
+
     "#{clean_name}@#{dept_code}.student.edu"
   end
 
   def ensure_unique_email(base_email)
     email = base_email
     counter = 1
-    
+
     while User.exists?(email: email)
       # Split email into name and domain
-      name_part = base_email.split('@').first
-      domain_part = base_email.split('@')[1..-1].join('@')
+      name_part = base_email.split("@").first
+      domain_part = base_email.split("@")[1..-1].join("@")
       email = "#{name_part}#{counter}@#{domain_part}"
       counter += 1
     end
-    
+
     email
   end
 end

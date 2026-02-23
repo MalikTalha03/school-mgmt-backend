@@ -6,7 +6,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
   let!(:department) { create(:department) }
   let!(:student) { create(:student, user: student_user, department: department, semester: 3, max_credit_per_semester: 21) }
   let(:valid_attributes) { { user_id: create(:user, role: :student).id, department_id: department.id, semester: 2, max_credit_per_semester: 18 } }
-  
+
   before do
     post '/users/sign_in', params: { user: { email: user.email, password: 'password123' } }
     @token = response.headers['Authorization']
@@ -15,7 +15,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
   describe 'GET /api/v1/students' do
     it 'returns all students' do
       get '/api/v1/students', headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json).not_to be_empty
@@ -30,7 +30,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
   describe 'GET /api/v1/students/:id' do
     it 'returns the student' do
       get "/api/v1/students/#{student.id}", headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json['id']).to eq(student.id)
@@ -51,7 +51,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
                params: { student: valid_attributes },
                headers: { 'Authorization' => @token }
         }.to change(Student, :count).by(1)
-        
+
         expect(response).to have_http_status(:created)
         json = JSON.parse(response.body)
         expect(json['semester']).to eq(2)
@@ -64,7 +64,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
         post '/api/v1/students',
              params: { student: valid_attributes.merge(semester: 13) },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('Semester cannot exceed 12')
@@ -74,7 +74,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
         post '/api/v1/students',
              params: { student: valid_attributes.merge(semester: 0) },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -84,7 +84,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
         post '/api/v1/students',
              params: { student: valid_attributes.merge(max_credit_per_semester: 25) },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -94,7 +94,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
         post '/api/v1/students',
              params: { student: { user_id: student_user.id, department_id: department.id, semester: 1 } },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -105,7 +105,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
       put "/api/v1/students/#{student.id}",
           params: { student: { semester: 4 } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       student.reload
       expect(student.semester).to eq(4)
@@ -115,7 +115,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
       put "/api/v1/students/#{student.id}",
           params: { student: { semester: 15 } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:unprocessable_entity)
     end
   end
@@ -123,12 +123,12 @@ RSpec.describe 'Api::V1::Students', type: :request do
   describe 'DELETE /api/v1/students/:id' do
     it 'deletes the student' do
       new_student = create(:student, department: department)
-      
+
       expect {
         delete "/api/v1/students/#{new_student.id}",
                headers: { 'Authorization' => @token }
       }.to change(Student, :count).by(-1)
-      
+
       expect(response).to have_http_status(:no_content)
     end
   end

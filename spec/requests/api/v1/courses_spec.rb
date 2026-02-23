@@ -6,7 +6,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
   let!(:teacher) { create(:teacher, department: department) }
   let!(:course) { create(:course, title: 'Data Structures', credit_hours: 3, teacher: teacher, department: department) }
   let(:valid_attributes) { { title: 'Algorithms', credit_hours: 3, teacher_id: teacher.id, department_id: department.id } }
-  
+
   before do
     post '/users/sign_in', params: { user: { email: user.email, password: 'password123' } }
     @token = response.headers['Authorization']
@@ -15,7 +15,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
   describe 'GET /api/v1/courses' do
     it 'returns all courses with associations' do
       get '/api/v1/courses', headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json).not_to be_empty
@@ -32,7 +32,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
   describe 'GET /api/v1/courses/:id' do
     it 'returns the course' do
       get "/api/v1/courses/#{course.id}", headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json['id']).to eq(course.id)
@@ -53,7 +53,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
                params: { course: valid_attributes },
                headers: { 'Authorization' => @token }
         }.to change(Course, :count).by(1)
-        
+
         expect(response).to have_http_status(:created)
         json = JSON.parse(response.body)
         expect(json['title']).to eq('Algorithms')
@@ -66,7 +66,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
         post '/api/v1/courses',
              params: { course: valid_attributes.merge(credit_hours: 5) },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('Credit hours must be between 0 and 4')
@@ -76,7 +76,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
         post '/api/v1/courses',
              params: { course: valid_attributes.merge(credit_hours: -1) },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -93,7 +93,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
         post '/api/v1/courses',
              params: { course: valid_attributes },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('cannot teach more than 3 courses')
@@ -105,7 +105,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
         post '/api/v1/courses',
              params: { course: valid_attributes.merge(title: '') },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -116,7 +116,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
       put "/api/v1/courses/#{course.id}",
           params: { course: { title: 'Advanced Data Structures' } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       course.reload
       expect(course.title).to eq('Advanced Data Structures')
@@ -126,7 +126,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
       put "/api/v1/courses/#{course.id}",
           params: { course: { credit_hours: 10 } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:unprocessable_entity)
     end
 
@@ -139,7 +139,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
       put "/api/v1/courses/#{course.id}",
           params: { course: { teacher_id: busy_teacher.id } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:unprocessable_entity)
       json = JSON.parse(response.body)
       expect(json['error']).to include('cannot teach more than 3 courses')
@@ -150,12 +150,12 @@ RSpec.describe 'Api::V1::Courses', type: :request do
     context 'without enrollments or grades' do
       it 'deletes the course' do
         new_course = create(:course, teacher: teacher, department: department, credit_hours: 3)
-        
+
         expect {
           delete "/api/v1/courses/#{new_course.id}",
                  headers: { 'Authorization' => @token }
         }.to change(Course, :count).by(-1)
-        
+
         expect(response).to have_http_status(:no_content)
       end
     end
@@ -169,7 +169,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
           delete "/api/v1/courses/#{course.id}",
                  headers: { 'Authorization' => @token }
         }.not_to change(Course, :count)
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('active enrollments')
@@ -185,7 +185,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
           delete "/api/v1/courses/#{course.id}",
                  headers: { 'Authorization' => @token }
         }.not_to change(Course, :count)
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('associated grades')

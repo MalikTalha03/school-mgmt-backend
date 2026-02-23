@@ -13,7 +13,7 @@ class Users::SessionsController < Devise::SessionsController
 
   def respond_with(resource, _opts = {})
     render json: {
-      message: 'Logged in successfully',
+      message: "Logged in successfully",
       user: {
         id: resource.id,
         email: resource.email,
@@ -23,11 +23,11 @@ class Users::SessionsController < Devise::SessionsController
   end
 
   def respond_to_on_destroy
-    if request.headers['Authorization'].present?
+    if request.headers["Authorization"].present?
       begin
-        jwt_payload = JWT.decode(request.headers['Authorization'].split(' ').last, 
+        jwt_payload = JWT.decode(request.headers["Authorization"].split(" ").last,
                                  Rails.application.credentials.devise_jwt_secret_key).first
-        current_user = User.find(jwt_payload['sub'])
+        current_user = User.find(jwt_payload["sub"])
       rescue JWT::DecodeError
         current_user = nil
       end
@@ -35,11 +35,11 @@ class Users::SessionsController < Devise::SessionsController
 
     if current_user
       render json: {
-        message: 'Logged out successfully.'
+        message: "Logged out successfully."
       }, status: :ok
     else
       render json: {
-        message: 'No active session.'
+        message: "No active session."
       }, status: :unauthorized
     end
   end

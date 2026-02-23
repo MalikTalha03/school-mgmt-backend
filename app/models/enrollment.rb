@@ -44,13 +44,13 @@ class Enrollment < ApplicationRecord
 
   def student_credit_limit
     return unless student.present? && course.present? && status_changed? || new_record?
-    
+
     max_credits = student.max_credit_per_semester || 21
     current_credits = student.current_semester_credits
-    
+
     # Subtract current course credits if updating existing enrollment
     current_credits -= course.credit_hours unless new_record?
-    
+
     if (current_credits + course.credit_hours) > max_credits
       errors.add(:base, "Enrollment would exceed maximum credit hours (#{max_credits}) for this semester")
     end

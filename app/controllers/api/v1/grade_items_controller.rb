@@ -1,18 +1,18 @@
 class Api::V1::GradeItemsController < Api::V1::BaseController
-  before_action :set_grade_item, only: [:show, :update, :destroy]
+  before_action :set_grade_item, only: [ :show, :update, :destroy ]
 
   def index
-    @grade_items = GradeItem.includes(grade: [:student, :course])
-    render json: @grade_items, include: { grade: { include: [:student, :course] } }
+    @grade_items = GradeItem.includes(grade: [ :student, :course ])
+    render json: @grade_items, include: { grade: { include: [ :student, :course ] } }
   end
 
   def show
-    render json: @grade_item, include: { grade: { include: [:student, :course] } }
+    render json: @grade_item, include: { grade: { include: [ :student, :course ] } }
   end
 
   def create
     @grade_item = GradeItem.new(grade_item_params)
-    
+
     if @grade_item.save
       render json: @grade_item, status: :created
     else

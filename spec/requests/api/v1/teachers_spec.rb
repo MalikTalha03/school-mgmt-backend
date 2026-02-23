@@ -6,7 +6,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
   let!(:department) { create(:department) }
   let!(:teacher) { create(:teacher, user: teacher_user, department: department, designation: :associate_professor) }
   let(:valid_attributes) { { user_id: create(:user, role: :teacher).id, department_id: department.id, designation: 'assistant_professor' } }
-  
+
   before do
     post '/users/sign_in', params: { user: { email: user.email, password: 'password123' } }
     @token = response.headers['Authorization']
@@ -15,7 +15,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
   describe 'GET /api/v1/teachers' do
     it 'returns all teachers' do
       get '/api/v1/teachers', headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json).not_to be_empty
@@ -30,9 +30,9 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
   describe 'GET /api/v1/teachers/:id' do
     it 'returns the teacher with courses' do
       course = create(:course, teacher: teacher, department: department, credit_hours: 3)
-      
+
       get "/api/v1/teachers/#{teacher.id}", headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json['id']).to eq(teacher.id)
@@ -54,7 +54,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
                params: { teacher: valid_attributes },
                headers: { 'Authorization' => @token }
         }.to change(Teacher, :count).by(1)
-        
+
         expect(response).to have_http_status(:created)
         json = JSON.parse(response.body)
         expect(json['designation']).to eq('assistant_professor')
@@ -68,7 +68,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
           post '/api/v1/teachers',
                params: { teacher: { user_id: new_user.id, department_id: department.id, designation: designation } },
                headers: { 'Authorization' => @token }
-          
+
           expect(response).to have_http_status(:created)
           json = JSON.parse(response.body)
           expect(json['designation']).to eq(designation)
@@ -79,7 +79,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
         post '/api/v1/teachers',
              params: { teacher: valid_attributes.merge(designation: 'invalid_designation') },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -89,7 +89,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
         post '/api/v1/teachers',
              params: { teacher: { user_id: teacher_user.id, department_id: department.id, designation: 'professor' } },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -100,7 +100,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
       put "/api/v1/teachers/#{teacher.id}",
           params: { teacher: { designation: 'professor' } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       teacher.reload
       expect(teacher.designation).to eq('professor')
@@ -110,7 +110,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
       put "/api/v1/teachers/#{teacher.id}",
           params: { teacher: { designation: 'invalid' } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:unprocessable_entity)
     end
   end
@@ -119,12 +119,12 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
     context 'without courses' do
       it 'deletes the teacher' do
         new_teacher = create(:teacher, department: department)
-        
+
         expect {
           delete "/api/v1/teachers/#{new_teacher.id}",
                  headers: { 'Authorization' => @token }
         }.to change(Teacher, :count).by(-1)
-        
+
         expect(response).to have_http_status(:no_content)
       end
     end
@@ -137,7 +137,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
           delete "/api/v1/teachers/#{teacher.id}",
                  headers: { 'Authorization' => @token }
         }.not_to change(Teacher, :count)
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('courses')
@@ -150,9 +150,9 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
       2.times do |i|
         create(:course, title: "Course #{i}", teacher: teacher, department: department, credit_hours: 3)
       end
-      
+
       get "/api/v1/teachers/#{teacher.id}", headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json['courses'].count).to eq(2)

@@ -1,13 +1,13 @@
 class Api::V1::TeachersController < Api::V1::BaseController
-  before_action :set_teacher, only: [:show, :update, :destroy]
+  before_action :set_teacher, only: [ :show, :update, :destroy ]
 
   def index
     @teachers = Teacher.includes(:department, :user, :courses).all
-    render json: @teachers, include: [:department, :user]
+    render json: @teachers, include: [ :department, :user ]
   end
 
   def show
-    render json: @teacher, include: [:department, :user, :courses]
+    render json: @teacher, include: [ :department, :user, :courses ]
   end
 
   def create
@@ -31,8 +31,8 @@ class Api::V1::TeachersController < Api::V1::BaseController
     # Create user with default password
     user = User.new(
       email: email,
-      password: '12345678',
-      password_confirmation: '12345678',
+      password: "12345678",
+      password_confirmation: "12345678",
       role: :teacher,
       name: name
     )
@@ -46,7 +46,7 @@ class Api::V1::TeachersController < Api::V1::BaseController
       )
 
       if @teacher.save
-        render json: @teacher.as_json(include: [:department, :user]), status: :created
+        render json: @teacher.as_json(include: [ :department, :user ]), status: :created
       else
         user.destroy # Rollback user creation
         render json: { errors: @teacher.errors.full_messages }, status: :unprocessable_entity
@@ -69,7 +69,7 @@ class Api::V1::TeachersController < Api::V1::BaseController
     if @teacher.courses.any?
       return render json: { error: "Cannot delete teacher with active courses. Please reassign or remove courses first." }, status: :unprocessable_entity
     end
-    
+
     if @teacher.destroy
       head :no_content
     else
@@ -91,27 +91,27 @@ class Api::V1::TeachersController < Api::V1::BaseController
 
   def generate_teacher_email(name, department_id)
     # Clean name: remove spaces, special chars, convert to lowercase
-    clean_name = name.downcase.gsub(/[^a-z0-9]/, '')
-    
+    clean_name = name.downcase.gsub(/[^a-z0-9]/, "")
+
     # Get department code
     dept = Department.find_by(id: department_id)
-    dept_code = dept&.code&.downcase || 'dept'
-    
+    dept_code = dept&.code&.downcase || "dept"
+
     "#{clean_name}@#{dept_code}.edu"
   end
 
   def ensure_unique_email(base_email)
     email = base_email
     counter = 1
-    
+
     while User.exists?(email: email)
       # Split email into name and domain
-      name_part = base_email.split('@').first
-      domain_part = base_email.split('@').last
+      name_part = base_email.split("@").first
+      domain_part = base_email.split("@").last
       email = "#{name_part}#{counter}@#{domain_part}"
       counter += 1
     end
-    
+
     email
   end
 end

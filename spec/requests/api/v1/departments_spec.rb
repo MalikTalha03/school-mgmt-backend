@@ -4,7 +4,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
   let!(:user) { create(:user, role: :admin, password: 'password123') }
   let!(:department) { create(:department, name: 'Computer Science', code: 'CS') }
   let(:valid_attributes) { { name: 'Software Engineering', code: 'SE' } }
-  
+
   before do
     post '/users/sign_in', params: { user: { email: user.email, password: 'password123' } }
     @token = response.headers['Authorization']
@@ -13,7 +13,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
   describe 'GET /api/v1/departments' do
     it 'returns all departments with associations' do
       get '/api/v1/departments', headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json).not_to be_empty
@@ -30,7 +30,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
   describe 'GET /api/v1/departments/:id' do
     it 'returns the department with details' do
       get "/api/v1/departments/#{department.id}", headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       json = JSON.parse(response.body)
       expect(json['id']).to eq(department.id)
@@ -42,9 +42,9 @@ RSpec.describe 'Api::V1::Departments', type: :request do
       teacher = create(:teacher, department: department)
       student = create(:student, department: department)
       course = create(:course, department: department, teacher: teacher, credit_hours: 3)
-      
+
       get "/api/v1/departments/#{department.id}", headers: { 'Authorization' => @token }
-      
+
       json = JSON.parse(response.body)
       expect(json).to have_key('students')
       expect(json).to have_key('teachers')
@@ -65,7 +65,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
                params: { department: valid_attributes },
                headers: { 'Authorization' => @token }
         }.to change(Department, :count).by(1)
-        
+
         expect(response).to have_http_status(:created)
         json = JSON.parse(response.body)
         expect(json['name']).to eq('Software Engineering')
@@ -78,7 +78,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
         post '/api/v1/departments',
              params: { department: valid_attributes.merge(code: 'se') },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:created)
         json = JSON.parse(response.body)
         expect(json['code']).to eq('SE')
@@ -90,7 +90,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
         post '/api/v1/departments',
              params: { department: valid_attributes.merge(name: '') },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
 
@@ -98,7 +98,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
         post '/api/v1/departments',
              params: { department: { name: 'Computer Science', code: 'CS2' } },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -108,7 +108,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
         post '/api/v1/departments',
              params: { department: valid_attributes.merge(code: '') },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
 
@@ -116,7 +116,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
         post '/api/v1/departments',
              params: { department: { name: 'New Department', code: 'CS' } },
              headers: { 'Authorization' => @token }
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
       end
     end
@@ -127,7 +127,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
       put "/api/v1/departments/#{department.id}",
           params: { department: { name: 'Computer & Information Sciences' } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       department.reload
       expect(department.name).to eq('Computer & Information Sciences')
@@ -137,7 +137,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
       put "/api/v1/departments/#{department.id}",
           params: { department: { code: 'cis' } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:ok)
       department.reload
       expect(department.code).to eq('CIS')
@@ -145,11 +145,11 @@ RSpec.describe 'Api::V1::Departments', type: :request do
 
     it 'validates uniqueness on update' do
       other_dept = create(:department, name: 'Physics', code: 'PHY')
-      
+
       put "/api/v1/departments/#{department.id}",
           params: { department: { code: 'PHY' } },
           headers: { 'Authorization' => @token }
-      
+
       expect(response).to have_http_status(:unprocessable_entity)
     end
   end
@@ -158,12 +158,12 @@ RSpec.describe 'Api::V1::Departments', type: :request do
     context 'without associations' do
       it 'deletes the department' do
         new_dept = create(:department, name: 'Mathematics', code: 'MATH')
-        
+
         expect {
           delete "/api/v1/departments/#{new_dept.id}",
                  headers: { 'Authorization' => @token }
         }.to change(Department, :count).by(-1)
-        
+
         expect(response).to have_http_status(:no_content)
       end
     end
@@ -176,7 +176,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
           delete "/api/v1/departments/#{department.id}",
                  headers: { 'Authorization' => @token }
         }.not_to change(Department, :count)
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('students')
@@ -191,7 +191,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
           delete "/api/v1/departments/#{department.id}",
                  headers: { 'Authorization' => @token }
         }.not_to change(Department, :count)
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('teachers')
@@ -207,7 +207,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
           delete "/api/v1/departments/#{department.id}",
                  headers: { 'Authorization' => @token }
         }.not_to change(Department, :count)
-        
+
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
         expect(json['error']).to include('courses')
