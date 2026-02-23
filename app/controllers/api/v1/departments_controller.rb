@@ -5,9 +5,9 @@ class Api::V1::DepartmentsController < Api::V1::BaseController
     @departments = Department.includes(:courses, :teachers, :students).all
     render json: @departments.map { |dept|
       dept.as_json.merge(
-        courses_count: dept.courses.count,
-        teachers_count: dept.teachers.count,
-        students_count: dept.students.count
+        courses_count: dept.courses.size,
+        teachers_count: dept.teachers.size,
+        students_count: dept.students.size
       )
     }
   end
@@ -39,20 +39,15 @@ class Api::V1::DepartmentsController < Api::V1::BaseController
   end
 
   def destroy
-    # Check for associated records
+    # Check for associated records — count each association once (avoids 3 extra .any? queries)
+    courses_count  = @department.courses.count
+    teachers_count = @department.teachers.count
+    students_count = @department.students.count
+
     errors = []
-
-    if @department.courses.any?
-      errors << "Has #{@department.courses.count} active courses"
-    end
-
-    if @department.teachers.any?
-      errors << "Has #{@department.teachers.count} teachers"
-    end
-
-    if @department.students.any?
-      errors << "Has #{@department.students.count} students"
-    end
+    errors << "Has #{courses_count} active courses"  if courses_count  > 0
+    errors << "Has #{teachers_count} teachers"        if teachers_count > 0
+    errors << "Has #{students_count} students"        if students_count > 0
 
     unless errors.empty?
       return render json: {

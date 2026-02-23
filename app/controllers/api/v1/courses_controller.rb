@@ -32,11 +32,12 @@ class Api::V1::CoursesController < Api::V1::BaseController
   end
 
   def destroy
-    # Check for active enrollments
-    if @course.enrollments.where(status: [ :pending, :approved ]).any?
+    # Check for active enrollments — single count query instead of any? + count
+    active_enrollment_count = @course.enrollments.where(status: [ :pending, :approved ]).count
+    if active_enrollment_count > 0
       return render json: {
         error: "Cannot delete course with active enrollments.",
-        active_enrollments: @course.enrollments.where(status: [ :pending, :approved ]).count
+        active_enrollments: active_enrollment_count
       }, status: :unprocessable_entity
     end
 

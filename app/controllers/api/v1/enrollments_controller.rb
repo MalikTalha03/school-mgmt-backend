@@ -134,12 +134,18 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
       }, status: :unprocessable_entity
     end
 
+    # Preload all relevant grades with their items in 2 queries (avoids N+1 per enrollment)
+    student_ids = approved_enrollments.map(&:student_id).uniq
+    course_ids  = approved_enrollments.map(&:course_id).uniq
+    grades = Grade.includes(:grade_items).where(student_id: student_ids, course_id: course_ids)
+    grade_lookup = grades.index_by { |g| [ g.student_id, g.course_id ] }
+
     # Detect courses that have students without a final grade_item
     incomplete_courses = {}
 
     approved_enrollments.each do |enrollment|
-      grade = Grade.find_by(student_id: enrollment.student_id, course_id: enrollment.course_id)
-      has_final = grade && GradeItem.exists?(grade_id: grade.id, category: :final)
+      grade = grade_lookup[[ enrollment.student_id, enrollment.course_id ]]
+      has_final = grade && grade.grade_items.any? { |gi| gi.category.to_s == "final" }
 
       unless has_final
         course = enrollment.course

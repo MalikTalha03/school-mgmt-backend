@@ -2,7 +2,7 @@ class Api::V1::TeachersController < Api::V1::BaseController
   before_action :set_teacher, only: [ :show, :update, :destroy ]
 
   def index
-    @teachers = Teacher.includes(:department, :user, :courses).all
+    @teachers = Teacher.includes(:department, :user).all
     render json: @teachers, include: [ :department, :user ]
   end
 

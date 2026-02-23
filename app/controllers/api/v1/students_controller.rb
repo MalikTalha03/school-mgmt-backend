@@ -84,21 +84,27 @@ class Api::V1::StudentsController < Api::V1::BaseController
   end
 
   def promote_semester
-    if @student.can_promote_to_next_semester?
-      if @student.promote_to_next_semester!
+    # Single query to get both counts instead of 4 separate queries
+    enrollment_counts = @student.enrollments
+                                .where(status: [ :approved, :pending ])
+                                .group(:status)
+                                .count
+    active_count  = enrollment_counts["approved"] || 0
+    pending_count = enrollment_counts["pending"]  || 0
+    at_max_semester = @student.semester.present? && @student.semester >= 12
+
+    if active_count == 0 && pending_count == 0 && !at_max_semester
+      if @student.update(semester: @student.semester + 1)
         @student.reload
         render json: @student, include: [ :department, :user ]
       else
         render json: { error: "Failed to promote student", errors: @student.errors.full_messages }, status: :unprocessable_entity
       end
     else
-      active_count = @student.enrollments.where(status: :approved).count
-      pending_count = @student.enrollments.where(status: :pending).count
-
       reasons = []
-      reasons << "Student has #{active_count} active enrollment(s)" if active_count > 0
+      reasons << "Student has #{active_count} active enrollment(s)"  if active_count  > 0
       reasons << "Student has #{pending_count} pending enrollment(s)" if pending_count > 0
-      reasons << "Student is already in final semester (12)" if @student.semester && @student.semester >= 12
+      reasons << "Student is already in final semester (12)"          if at_max_semester
 
       render json: {
         error: "Cannot promote student to next semester",
