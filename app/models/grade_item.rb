@@ -10,8 +10,6 @@ class GradeItem < ApplicationRecord
   validate :max_marks_by_category
   validate :unique_midterm_and_final
 
-  after_create :complete_enrollment_if_final
-
   private
 
   def midterm_prerequisites
@@ -34,15 +32,6 @@ class GradeItem < ApplicationRecord
     
     unless has_midterm && assignment_count >= 4 && quiz_count >= 4
       errors.add(:base, "Cannot enter final marks without midterm and at least 4 assignments and 4 quizzes")
-    end
-  end
-
-  def complete_enrollment_if_final
-    return unless final? && grade.present?
-    
-    enrollment = Enrollment.find_by(student_id: grade.student_id, course_id: grade.course_id)
-    if enrollment && enrollment.approved?
-      enrollment.update(status: :completed)
     end
   end
 
