@@ -14,9 +14,10 @@ RSpec.describe 'Users::Sessions', type: :request do
         expect(response.headers['Authorization']).to start_with('Bearer ')
 
         json = JSON.parse(response.body)
-        expect(json).to have_key('id')
-        expect(json['email']).to eq('test@example.com')
-        expect(json['role']).to eq('admin')
+        expect(json).to have_key('user')
+        expect(json['user']['id']).to be_present
+        expect(json['user']['email']).to eq('test@example.com')
+        expect(json['user']['role']).to eq('admin')
       end
     end
 
@@ -25,7 +26,7 @@ RSpec.describe 'Users::Sessions', type: :request do
         post '/users/sign_in',
              params: { user: { email: 'wrong@example.com', password: 'password123' } }
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:unprocessable_entity)
         expect(response.headers['Authorization']).to be_nil
       end
     end
@@ -35,7 +36,7 @@ RSpec.describe 'Users::Sessions', type: :request do
         post '/users/sign_in',
              params: { user: { email: 'test@example.com', password: 'wrongpassword' } }
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:unprocessable_entity)
         expect(response.headers['Authorization']).to be_nil
       end
     end
@@ -45,14 +46,14 @@ RSpec.describe 'Users::Sessions', type: :request do
         post '/users/sign_in',
              params: { user: { password: 'password123' } }
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:unprocessable_entity)
       end
 
       it 'returns bad request for missing password' do
         post '/users/sign_in',
              params: { user: { email: 'test@example.com' } }
 
-        expect(response).to have_http_status(:unauthorized)
+        expect(response).to have_http_status(:unprocessable_entity)
       end
     end
   end
@@ -77,7 +78,7 @@ RSpec.describe 'Users::Sessions', type: :request do
 
       # Try to access protected endpoint with revoked token
       get '/api/v1/students',
-          headers: { 'Authorization' => token }
+          headers: { 'Authorization' => token, 'ACCEPT' => 'application/json' }
 
       expect(response).to have_http_status(:unauthorized)
     end

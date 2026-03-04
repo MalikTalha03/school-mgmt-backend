@@ -6,7 +6,7 @@ RSpec.describe 'Api::V1::Grades', type: :request do
   let!(:student) { create(:student, department: department) }
   let!(:teacher) { create(:teacher, department: department) }
   let!(:course) { create(:course, teacher: teacher, department: department, credit_hours: 3) }
-  let!(:enrollment) { create(:enrollment, student: student, course: course, status: :enrolled) }
+  let!(:enrollment) { create(:enrollment, student: student, course: course, status: :approved) }
   let!(:grade) { create(:grade, student: student, course: course) }
 
   before do
@@ -39,7 +39,7 @@ RSpec.describe 'Api::V1::Grades', type: :request do
       it 'creates a new grade' do
         new_student = create(:student, department: department)
         new_course = create(:course, teacher: teacher, department: department, credit_hours: 3)
-        create(:enrollment, student: new_student, course: new_course, status: :enrolled)
+        create(:enrollment, student: new_student, course: new_course, status: :approved)
 
         expect {
           post '/api/v1/grades',

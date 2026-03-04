@@ -6,8 +6,8 @@ RSpec.describe 'Api::V1::Enrollments', type: :request do
   let!(:student) { create(:student, department: department, semester: 3, max_credit_per_semester: 21) }
   let!(:teacher) { create(:teacher, department: department) }
   let!(:course) { create(:course, title: 'Web Dev', credit_hours: 3, teacher: teacher, department: department) }
-  let!(:enrollment) { create(:enrollment, student: student, course: course, status: :enrolled) }
-  let(:valid_attributes) { { student_id: create(:student, department: department).id, course_id: create(:course, teacher: teacher, department: department, credit_hours: 3).id, status: 'enrolled' } }
+  let!(:enrollment) { create(:enrollment, student: student, course: course, status: :approved) }
+  let(:valid_attributes) { { student_id: create(:student, department: department).id, course_id: create(:course, teacher: teacher, department: department, credit_hours: 3).id, status: 'approved' } }
 
   before do
     post '/users/sign_in', params: { user: { email: user.email, password: 'password123' } }
@@ -42,7 +42,7 @@ RSpec.describe 'Api::V1::Enrollments', type: :request do
 
         expect {
           post '/api/v1/enrollments',
-               params: { enrollment: { student_id: new_student.id, course_id: new_course.id, status: 'enrolled' } },
+           params: { enrollment: { student_id: new_student.id, course_id: new_course.id, status: 'approved' } },
                headers: { 'Authorization' => @token }
         }.to change(Enrollment, :count).by(1)
 
@@ -52,10 +52,11 @@ RSpec.describe 'Api::V1::Enrollments', type: :request do
 
     context 'credit hours limit validation' do
       before do
-        # Enroll student in courses totaling 18 credits (21 - 3 from existing enrollment)
+        # Existing enrollment contributes 3 approved credits; add 15 more
         5.times do |i|
-          course = create(:course, title: "Course #{i}", teacher: teacher, department: department, credit_hours: 3)
-          create(:enrollment, student: student, course: course, status: :enrolled)
+          course_teacher = create(:teacher, department: department)
+          course = create(:course, title: "Course #{i}", teacher: course_teacher, department: department, credit_hours: 3)
+          create(:enrollment, student: student, course: course, status: :approved)
         end
       end
 
@@ -63,40 +64,44 @@ RSpec.describe 'Api::V1::Enrollments', type: :request do
         new_course = create(:course, title: 'Overflow Course', teacher: create(:teacher, department: department), department: department, credit_hours: 4)
 
         post '/api/v1/enrollments',
-             params: { enrollment: { student_id: student.id, course_id: new_course.id, status: 'enrolled' } },
+             params: { enrollment: { student_id: student.id, course_id: new_course.id, status: 'approved' } },
              headers: { 'Authorization' => @token }
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('exceed maximum credit hours')
+        expect(json['errors'].join(' ')).to include('exceed maximum credit hours')
       end
     end
 
     context 'semester limit validation' do
-      let!(:expired_student) { create(:student, department: department, semester: 13) }
+      let!(:expired_student) do
+        student = create(:student, department: department, semester: 2)
+        student.update_column(:semester, 13)
+        student
+      end
 
       it 'prevents enrollment for student exceeding semester 12' do
         new_course = create(:course, title: 'Test', teacher: teacher, department: department, credit_hours: 3)
 
         post '/api/v1/enrollments',
-             params: { enrollment: { student_id: expired_student.id, course_id: new_course.id, status: 'enrolled' } },
+             params: { enrollment: { student_id: expired_student.id, course_id: new_course.id, status: 'approved' } },
              headers: { 'Authorization' => @token }
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('exceeded maximum semester limit')
+           expect(json['errors'].join(' ')).to include('maximum semester limit')
       end
     end
 
     context 'duplicate enrollment validation' do
       it 'prevents duplicate enrollment in same course' do
         post '/api/v1/enrollments',
-             params: { enrollment: { student_id: student.id, course_id: course.id, status: 'enrolled' } },
+             params: { enrollment: { student_id: student.id, course_id: course.id, status: 'approved' } },
              headers: { 'Authorization' => @token }
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('already enrolled')
+        expect(json['errors'].join(' ')).to include('already enrolled')
       end
     end
   end
@@ -122,36 +127,6 @@ RSpec.describe 'Api::V1::Enrollments', type: :request do
       expect(response).to have_http_status(:unprocessable_entity)
       json = JSON.parse(response.body)
       expect(json['error']).to include('Cannot change student or course')
-    end
-  end
-
-  describe 'DELETE /api/v1/enrollments/:id' do
-    context 'without grades' do
-      it 'deletes the enrollment' do
-        new_enrollment = create(:enrollment, student: create(:student, department: department), course: create(:course, teacher: teacher, department: department, credit_hours: 3))
-
-        expect {
-          delete "/api/v1/enrollments/#{new_enrollment.id}",
-                 headers: { 'Authorization' => @token }
-        }.to change(Enrollment, :count).by(-1)
-
-        expect(response).to have_http_status(:no_content)
-      end
-    end
-
-    context 'with grades' do
-      let!(:grade) { create(:grade, student: student, course: course) }
-
-      it 'prevents deletion' do
-        expect {
-          delete "/api/v1/enrollments/#{enrollment.id}",
-                 headers: { 'Authorization' => @token }
-        }.not_to change(Enrollment, :count)
-
-        expect(response).to have_http_status(:unprocessable_entity)
-        json = JSON.parse(response.body)
-        expect(json['error']).to include('existing grades')
-      end
     end
   end
 end

@@ -5,7 +5,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
   let!(:teacher_user) { create(:user, role: :teacher, password: 'password123') }
   let!(:department) { create(:department) }
   let!(:teacher) { create(:teacher, user: teacher_user, department: department, designation: :associate_professor) }
-  let(:valid_attributes) { { user_id: create(:user, role: :teacher).id, department_id: department.id, designation: 'assistant_professor' } }
+  let(:valid_attributes) { { name: 'New Teacher', department_id: department.id, designation: 'assistant_professor' } }
 
   before do
     post '/users/sign_in', params: { user: { email: user.email, password: 'password123' } }
@@ -22,7 +22,7 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
     end
 
     it 'requires authentication' do
-      get '/api/v1/teachers'
+      get '/api/v1/teachers', headers: { 'ACCEPT' => 'application/json' }
       expect(response).to have_http_status(:unauthorized)
     end
   end
@@ -63,10 +63,9 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
 
     context 'designation validation' do
       it 'accepts valid designations' do
-        %w[assistant_professor associate_professor professor visiting_professor].each do |designation|
-          new_user = create(:user, role: :teacher)
+        %w[visiting_faculty lecturer assistant_professor associate_professor professor].each do |designation|
           post '/api/v1/teachers',
-               params: { teacher: { user_id: new_user.id, department_id: department.id, designation: designation } },
+               params: { teacher: { name: "Teacher #{designation}", department_id: department.id, designation: designation } },
                headers: { 'Authorization' => @token }
 
           expect(response).to have_http_status(:created)
@@ -84,10 +83,10 @@ RSpec.describe 'Api::V1::Teachers', type: :request do
       end
     end
 
-    context 'duplicate user validation' do
-      it 'prevents duplicate user_id' do
+    context 'name validation' do
+      it 'requires name' do
         post '/api/v1/teachers',
-             params: { teacher: { user_id: teacher_user.id, department_id: department.id, designation: 'professor' } },
+             params: { teacher: valid_attributes.merge(name: '') },
              headers: { 'Authorization' => @token }
 
         expect(response).to have_http_status(:unprocessable_entity)

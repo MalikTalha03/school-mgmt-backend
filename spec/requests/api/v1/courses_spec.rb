@@ -24,7 +24,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
     end
 
     it 'requires authentication' do
-      get '/api/v1/courses'
+      get '/api/v1/courses', headers: { 'ACCEPT' => 'application/json' }
       expect(response).to have_http_status(:unauthorized)
     end
   end
@@ -83,8 +83,8 @@ RSpec.describe 'Api::V1::Courses', type: :request do
 
     context 'teacher limit validation' do
       before do
-        # Create 3 courses for the teacher
-        3.times do |i|
+        # One course already exists for this teacher via let!(:course)
+        2.times do |i|
           create(:course, title: "Course #{i}", teacher: teacher, department: department, credit_hours: 3)
         end
       end
@@ -96,7 +96,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('cannot teach more than 3 courses')
+        expect(json['error']).to include('maximum 3 courses assigned')
       end
     end
 
@@ -142,7 +142,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
 
       expect(response).to have_http_status(:unprocessable_entity)
       json = JSON.parse(response.body)
-      expect(json['error']).to include('cannot teach more than 3 courses')
+      expect(json['error']).to include('maximum 3 courses assigned')
     end
   end
 
@@ -162,7 +162,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
 
     context 'with enrollments' do
       let!(:student) { create(:student, department: department) }
-      let!(:enrollment) { create(:enrollment, student: student, course: course, status: :enrolled) }
+      let!(:enrollment) { create(:enrollment, student: student, course: course, status: :approved) }
 
       it 'prevents deletion' do
         expect {
@@ -188,7 +188,7 @@ RSpec.describe 'Api::V1::Courses', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('associated grades')
+        expect(json['error']).to include('existing grade records')
       end
     end
   end

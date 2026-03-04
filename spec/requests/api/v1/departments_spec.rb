@@ -22,7 +22,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
     end
 
     it 'requires authentication' do
-      get '/api/v1/departments'
+      get '/api/v1/departments', headers: { 'ACCEPT' => 'application/json' }
       expect(response).to have_http_status(:unauthorized)
     end
   end
@@ -179,7 +179,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('students')
+        expect(json['details'].join(' ')).to include('students')
       end
     end
 
@@ -194,7 +194,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('teachers')
+        expect(json['details'].join(' ')).to include('teachers')
       end
     end
 
@@ -210,7 +210,7 @@ RSpec.describe 'Api::V1::Departments', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('courses')
+        expect(json['details'].join(' ')).to include('courses')
       end
     end
   end

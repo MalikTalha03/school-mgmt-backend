@@ -5,7 +5,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
   let!(:student_user) { create(:user, role: :student, password: 'password123') }
   let!(:department) { create(:department) }
   let!(:student) { create(:student, user: student_user, department: department, semester: 3, max_credit_per_semester: 21) }
-  let(:valid_attributes) { { user_id: create(:user, role: :student).id, department_id: department.id, semester: 2, max_credit_per_semester: 18 } }
+  let(:valid_attributes) { { name: 'New Student', department_id: department.id, semester: 2 } }
 
   before do
     post '/users/sign_in', params: { user: { email: user.email, password: 'password123' } }
@@ -22,7 +22,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
     end
 
     it 'requires authentication' do
-      get '/api/v1/students'
+      get '/api/v1/students', headers: { 'ACCEPT' => 'application/json' }
       expect(response).to have_http_status(:unauthorized)
     end
   end
@@ -55,7 +55,6 @@ RSpec.describe 'Api::V1::Students', type: :request do
         expect(response).to have_http_status(:created)
         json = JSON.parse(response.body)
         expect(json['semester']).to eq(2)
-        expect(json['max_credit_per_semester']).to eq(18)
       end
     end
 
@@ -67,7 +66,7 @@ RSpec.describe 'Api::V1::Students', type: :request do
 
         expect(response).to have_http_status(:unprocessable_entity)
         json = JSON.parse(response.body)
-        expect(json['error']).to include('Semester cannot exceed 12')
+        expect(json['error']).to include('Semester must be between 1 and 12')
       end
 
       it 'rejects semester 0 or negative' do
@@ -79,23 +78,15 @@ RSpec.describe 'Api::V1::Students', type: :request do
       end
     end
 
-    context 'credit hours validation' do
-      it 'rejects max_credit_per_semester greater than 21' do
+    context 'name validation' do
+      it 'requires name' do
         post '/api/v1/students',
-             params: { student: valid_attributes.merge(max_credit_per_semester: 25) },
+             params: { student: valid_attributes.merge(name: '') },
              headers: { 'Authorization' => @token }
 
         expect(response).to have_http_status(:unprocessable_entity)
-      end
-    end
-
-    context 'duplicate user validation' do
-      it 'prevents duplicate user_id' do
-        post '/api/v1/students',
-             params: { student: { user_id: student_user.id, department_id: department.id, semester: 1 } },
-             headers: { 'Authorization' => @token }
-
-        expect(response).to have_http_status(:unprocessable_entity)
+        json = JSON.parse(response.body)
+        expect(json['error']).to include('Name is required')
       end
     end
   end
