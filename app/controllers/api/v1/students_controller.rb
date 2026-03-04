@@ -1,9 +1,19 @@
 class Api::V1::StudentsController < Api::V1::BaseController
   before_action :set_student, only: [ :show, :update, :destroy, :promote_semester ]
-  before_action :require_admin!, only: [ :promote_semester ]
+  before_action -> { require_roles(:admin) }, only: [ :create, :destroy, :promote_semester ]
+  before_action :authorize_student_read!, only: [ :show ]
+  before_action :authorize_student_update!, only: [ :update ]
 
   def index
-    @students = Student.includes(:department, :user).all
+    @students = if admin?
+      Student.includes(:department, :user).all
+    elsif student?
+      student_record = current_user.student
+      student_record ? Student.includes(:department, :user).where(id: student_record.id) : Student.none
+    else
+      Student.none
+    end
+
     render json: @students, include: [ :department, :user ]
   end
 
@@ -124,14 +134,22 @@ class Api::V1::StudentsController < Api::V1::BaseController
     render json: { error: "Student not found" }, status: :not_found
   end
 
-  def require_admin!
-    unless current_user&.admin?
-      render json: { error: "Admin access required" }, status: :forbidden
-    end
-  end
-
   def student_params
     params.require(:student).permit(:user_id, :department_id, :semester, :max_credit_hours, :max_credit_per_semester, :name)
+  end
+
+  def authorize_student_read!
+    return if admin?
+    return if student? && current_user.student&.id == @student.id
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
+  end
+
+  def authorize_student_update!
+    return if admin?
+    return if student? && current_user.student&.id == @student.id
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
   end
 
   def generate_student_email(name, department_id)

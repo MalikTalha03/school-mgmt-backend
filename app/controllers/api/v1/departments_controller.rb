@@ -1,5 +1,6 @@
 class Api::V1::DepartmentsController < Api::V1::BaseController
   before_action :set_department, only: [ :show, :update, :destroy ]
+  before_action -> { require_roles(:admin) }, only: [ :create, :update, :destroy ]
 
   def index
     @departments = Department.includes(:courses, :teachers, :students).all

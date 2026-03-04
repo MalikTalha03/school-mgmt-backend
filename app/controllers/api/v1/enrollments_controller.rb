@@ -1,10 +1,25 @@
 class Api::V1::EnrollmentsController < Api::V1::BaseController
   before_action :set_enrollment, only: [ :show, :update, :approve, :reject, :complete, :drop, :withdraw ]
-  before_action :require_admin!, only: [ :approve, :reject, :complete, :drop, :create, :announce_results ]
+  before_action -> { require_roles(:admin) }, only: [ :approve, :reject, :complete, :drop, :create, :announce_results ]
   before_action :validate_enrollment_request, only: [ :request_enrollment ]
+  before_action :authorize_enrollment_read!, only: [ :show ]
+  before_action :authorize_enrollment_update!, only: [ :update ]
 
   def index
     @enrollments = Enrollment.includes(student: [ :user, :department ], course: [ :teacher, :department ])
+
+    @enrollments = if admin?
+      @enrollments
+    elsif student?
+      student = current_user.student
+      student ? @enrollments.where(student_id: student.id) : Enrollment.none
+    elsif teacher?
+      teacher = current_user.teacher
+      teacher ? @enrollments.where(courses: { teacher_id: teacher.id }) : Enrollment.none
+    else
+      Enrollment.none
+    end
+
     render json: @enrollments, include: {
       student: { include: [ :user, :department ] },
       course: { include: [ :teacher, :department ] }
@@ -205,14 +220,26 @@ class Api::V1::EnrollmentsController < Api::V1::BaseController
     render json: { error: "Enrollment not found" }, status: :not_found
   end
 
-  def require_admin!
-    unless current_user.admin?
-      render json: { error: "Admin access required" }, status: :forbidden
-    end
-  end
-
   def enrollment_params
     params.require(:enrollment).permit(:student_id, :course_id, :status, :semester)
+  end
+
+  def authorize_enrollment_read!
+    return if admin?
+
+    if student?
+      return if current_user.student&.id == @enrollment.student_id
+    elsif teacher?
+      return if current_user.teacher&.id == @enrollment.course.teacher_id
+    end
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
+  end
+
+  def authorize_enrollment_update!
+    return if admin?
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
   end
 
   def validate_enrollment_request

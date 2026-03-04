@@ -2,6 +2,7 @@ class Api::V1::CoursesController < Api::V1::BaseController
   before_action :set_course, only: [ :show, :update, :destroy ]
   before_action :validate_credit_hours, only: [ :create, :update ]
   before_action :validate_teacher_limit, only: [ :create, :update ]
+  before_action -> { require_roles(:admin) }, only: [ :create, :update, :destroy ]
 
   def index
     @courses = Course.includes(teacher: [ :user, :department ], department: []).all

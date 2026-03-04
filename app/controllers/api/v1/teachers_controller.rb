@@ -1,8 +1,18 @@
 class Api::V1::TeachersController < Api::V1::BaseController
   before_action :set_teacher, only: [ :show, :update, :destroy ]
+  before_action -> { require_roles(:admin) }, only: [ :create, :update, :destroy ]
+  before_action :authorize_teacher_read!, only: [ :show ]
 
   def index
-    @teachers = Teacher.includes(:department, :user).all
+    @teachers = if admin?
+      Teacher.includes(:department, :user).all
+    elsif teacher?
+      teacher_record = current_user.teacher
+      teacher_record ? Teacher.includes(:department, :user).where(id: teacher_record.id) : Teacher.none
+    else
+      Teacher.none
+    end
+
     render json: @teachers, include: [ :department, :user ]
   end
 
@@ -39,11 +49,16 @@ class Api::V1::TeachersController < Api::V1::BaseController
 
     if user.save
       # Create teacher record
-      @teacher = Teacher.new(
-        user_id: user.id,
-        department_id: department_id,
-        designation: designation
-      )
+      begin
+        @teacher = Teacher.new(
+          user_id: user.id,
+          department_id: department_id,
+          designation: designation
+        )
+      rescue ArgumentError => e
+        user.destroy
+        return render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
 
       if @teacher.save
         render json: @teacher.as_json(include: [ :department, :user ]), status: :created
@@ -57,10 +72,14 @@ class Api::V1::TeachersController < Api::V1::BaseController
   end
 
   def update
-    if @teacher.update(teacher_params)
-      render json: @teacher
-    else
-      render json: { errors: @teacher.errors.full_messages }, status: :unprocessable_entity
+    begin
+      if @teacher.update(teacher_params)
+        render json: @teacher
+      else
+        render json: { errors: @teacher.errors.full_messages }, status: :unprocessable_entity
+      end
+    rescue ArgumentError => e
+      render json: { errors: [ e.message ] }, status: :unprocessable_entity
     end
   end
 
@@ -87,6 +106,13 @@ class Api::V1::TeachersController < Api::V1::BaseController
 
   def teacher_params
     params.require(:teacher).permit(:user_id, :department_id, :designation, :name)
+  end
+
+  def authorize_teacher_read!
+    return if admin?
+    return if teacher? && current_user.teacher&.id == @teacher.id
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
   end
 
   def generate_teacher_email(name, department_id)

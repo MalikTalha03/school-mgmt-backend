@@ -22,7 +22,7 @@ class Users::SessionsController < Devise::SessionsController
     }, status: :ok
   end
 
-  def respond_to_on_destroy
+  def respond_to_on_destroy(_opts = {})
     if request.headers["Authorization"].present?
       begin
         jwt_payload = JWT.decode(request.headers["Authorization"].split(" ").last,
