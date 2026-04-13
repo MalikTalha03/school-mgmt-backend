@@ -1,20 +1,33 @@
 class Api::V1::GradeItemsController < Api::V1::BaseController
-  before_action :set_grade_item, only: [:show, :update, :destroy]
-  before_action :authenticate_user!
-  before_action :validate_final_prerequisites, only: [:create, :update]
+  before_action :set_grade_item, only: [ :show, :update, :destroy ]
+  before_action -> { require_roles(:admin, :teacher) }, only: [ :create, :update, :destroy ]
+  before_action :authorize_grade_item_read!, only: [ :show ]
+  before_action :authorize_grade_item_write!, only: [ :create, :update, :destroy ]
 
   def index
-    @grade_items = GradeItem.includes(grade: [:student, :course]).all
-    render json: @grade_items, include: { grade: { include: [:student, :course] } }
+    @grade_items = GradeItem.includes(grade: [ :student, :course ])
+    @grade_items = if admin?
+      @grade_items
+    elsif student?
+      student_record = current_user.student
+      student_record ? @grade_items.joins(:grade).where(grades: { student_id: student_record.id }) : GradeItem.none
+    elsif teacher?
+      teacher_record = current_user.teacher
+      teacher_record ? @grade_items.joins(grade: :course).where(courses: { teacher_id: teacher_record.id }) : GradeItem.none
+    else
+      GradeItem.none
+    end
+
+    render json: @grade_items, include: { grade: { include: [ :student, :course ] } }
   end
 
   def show
-    render json: @grade_item, include: { grade: { include: [:student, :course] } }
+    render json: @grade_item, include: { grade: { include: [ :student, :course ] } }
   end
 
   def create
     @grade_item = GradeItem.new(grade_item_params)
-    
+
     if @grade_item.save
       render json: @grade_item, status: :created
     else
@@ -50,35 +63,33 @@ class Api::V1::GradeItemsController < Api::V1::BaseController
     params.require(:grade_item).permit(:grade_id, :category, :max_marks, :obtained_marks)
   end
 
-  def validate_final_prerequisites
-    return unless params[:grade_item][:category] == 'final' || params[:grade_item][:category] == '3'
-    
-    grade_id = params[:grade_item][:grade_id] || @grade_item&.grade_id
-    return unless grade_id
-    
-    grade = Grade.find_by(id: grade_id)
-    return unless grade
-    
-    has_midterm = grade.grade_items.exists?(category: :midterm)
-    has_assignment = grade.grade_items.exists?(category: :assignment)
-    has_quiz = grade.grade_items.exists?(category: :quiz)
-    
-    # When updating, check if this is the existing final
-    if @grade_item&.final?
-      return
-    end
-    
-    unless has_midterm && has_assignment && has_quiz
-      missing = []
-      missing << 'midterm' unless has_midterm
-      missing << 'assignment' unless has_assignment
-      missing << 'quiz' unless has_quiz
-      
-      render json: { 
-        error: "Cannot enter final marks without required grade items",
-        missing: missing,
-        requirement: "Must have at least 1 midterm, 1 assignment, and 1 quiz"
-      }, status: :unprocessable_entity
+  def authorize_grade_item_read!
+    return if admin?
+    return if student? && current_user.student&.id == @grade_item.grade.student_id
+    return if teacher? && current_user.teacher&.id == @grade_item.grade.course.teacher_id
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
+  end
+
+  def authorize_grade_item_write!
+    return if admin?
+    return if teacher_can_manage_grade_item?
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
+  end
+
+  def teacher_can_manage_grade_item?
+    return false unless teacher?
+    teacher_id = current_user.teacher&.id
+    return false unless teacher_id
+
+    if @grade_item.present?
+      @grade_item.grade.course.teacher_id == teacher_id
+    else
+      grade_id = params.dig(:grade_item, :grade_id)
+      return false unless grade_id
+
+      Grade.joins(:course).where(id: grade_id, courses: { teacher_id: teacher_id }).exists?
     end
   end
 end

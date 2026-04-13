@@ -15,7 +15,7 @@ class Course < ApplicationRecord
 
   def teacher_course_limit
     return unless teacher_id_changed? && teacher.present?
-    
+
     if teacher.courses.where.not(id: id).count >= 3
       errors.add(:teacher, "already has maximum 3 courses assigned")
     end

@@ -1,6 +1,6 @@
 FactoryBot.define do
   factory :jwt_denylist do
-    jti { "MyString" }
-    exp { "2026-02-13 14:36:36" }
+    sequence(:jti) { |n| "jti-#{n}" }
+    exp { 1.day.from_now }
   end
 end

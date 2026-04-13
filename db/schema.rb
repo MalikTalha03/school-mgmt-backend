@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_13_120150) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_23_093611) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -35,6 +35,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_13_120150) do
   create_table "enrollments", force: :cascade do |t|
     t.bigint "course_id", null: false
     t.datetime "created_at", null: false
+    t.integer "semester"
     t.integer "status"
     t.bigint "student_id", null: false
     t.datetime "updated_at", null: false
@@ -95,6 +96,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_13_120150) do
     t.datetime "created_at", null: false
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
+    t.string "name"
     t.datetime "remember_created_at"
     t.datetime "reset_password_sent_at"
     t.string "reset_password_token"

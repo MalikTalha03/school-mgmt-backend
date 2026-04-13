@@ -1,9 +1,9 @@
 FactoryBot.define do
   factory :grade_item do
     association :grade
-    category { :midterm }
-    max_marks { 30 }
-    obtained_marks { 25 }
+    category { :assignment }
+    max_marks { 20 }
+    obtained_marks { 18 }
 
     trait :assignment do
       category { :assignment }

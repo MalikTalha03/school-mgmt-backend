@@ -1,8 +1,8 @@
 FactoryBot.define do
   factory :student do
-    association :user, factory: :user, role: :student
+    user { create(:user, :student) }
     semester { 1 }
     max_credit_per_semester { 21 }
-    association :department
+    department { create(:department) }
   end
 end

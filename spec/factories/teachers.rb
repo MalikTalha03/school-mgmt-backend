@@ -1,7 +1,7 @@
 FactoryBot.define do
   factory :teacher do
-    association :user, factory: :user, role: :teacher
+    user { create(:user, :teacher) }
     designation { :assistant_professor }
-    association :department
+    department { create(:department) }
   end
 end

@@ -1,31 +1,85 @@
 class Api::V1::TeachersController < Api::V1::BaseController
-  before_action :set_teacher, only: [:show, :update, :destroy]
-  before_action :authenticate_user!
+  before_action :set_teacher, only: [ :show, :update, :destroy ]
+  before_action -> { require_roles(:admin) }, only: [ :create, :update, :destroy ]
+  before_action :authorize_teacher_read!, only: [ :show ]
 
   def index
-    @teachers = Teacher.includes(:department, :courses).all
-    render json: @teachers
+    @teachers = if admin?
+      Teacher.includes(:department, :user).all
+    elsif teacher?
+      teacher_record = current_user.teacher
+      teacher_record ? Teacher.includes(:department, :user).where(id: teacher_record.id) : Teacher.none
+    else
+      Teacher.none
+    end
+
+    render json: @teachers, include: [ :department, :user ]
   end
 
   def show
-    render json: @teacher
+    render json: @teacher, include: [ :department, :user, :courses ]
   end
 
   def create
-    @teacher = Teacher.new(teacher_params)
-    
-    if @teacher.save
-      render json: @teacher, status: :created
+    # Extract user creation params
+    name = params[:teacher][:name]
+    department_id = params[:teacher][:department_id]
+    designation = params[:teacher][:designation]
+
+    if name.blank?
+      return render json: { error: "Name is required" }, status: :unprocessable_entity
+    end
+
+    if department_id.blank?
+      return render json: { error: "Department is required" }, status: :unprocessable_entity
+    end
+
+    # Generate unique email
+    base_email = generate_teacher_email(name, department_id)
+    email = ensure_unique_email(base_email)
+
+    # Create user with default password
+    user = User.new(
+      email: email,
+      password: "12345678",
+      password_confirmation: "12345678",
+      role: :teacher,
+      name: name
+    )
+
+    if user.save
+      # Create teacher record
+      begin
+        @teacher = Teacher.new(
+          user_id: user.id,
+          department_id: department_id,
+          designation: designation
+        )
+      rescue ArgumentError => e
+        user.destroy
+        return render json: { errors: [ e.message ] }, status: :unprocessable_entity
+      end
+
+      if @teacher.save
+        render json: @teacher.as_json(include: [ :department, :user ]), status: :created
+      else
+        user.destroy # Rollback user creation
+        render json: { errors: @teacher.errors.full_messages }, status: :unprocessable_entity
+      end
     else
-      render json: { errors: @teacher.errors.full_messages }, status: :unprocessable_entity
+      render json: { errors: user.errors.full_messages }, status: :unprocessable_entity
     end
   end
 
   def update
-    if @teacher.update(teacher_params)
-      render json: @teacher
-    else
-      render json: { errors: @teacher.errors.full_messages }, status: :unprocessable_entity
+    begin
+      if @teacher.update(teacher_params)
+        render json: @teacher
+      else
+        render json: { errors: @teacher.errors.full_messages }, status: :unprocessable_entity
+      end
+    rescue ArgumentError => e
+      render json: { errors: [ e.message ] }, status: :unprocessable_entity
     end
   end
 
@@ -34,7 +88,7 @@ class Api::V1::TeachersController < Api::V1::BaseController
     if @teacher.courses.any?
       return render json: { error: "Cannot delete teacher with active courses. Please reassign or remove courses first." }, status: :unprocessable_entity
     end
-    
+
     if @teacher.destroy
       head :no_content
     else
@@ -51,6 +105,39 @@ class Api::V1::TeachersController < Api::V1::BaseController
   end
 
   def teacher_params
-    params.require(:teacher).permit(:user_id, :department_id, :designation)
+    params.require(:teacher).permit(:user_id, :department_id, :designation, :name)
+  end
+
+  def authorize_teacher_read!
+    return if admin?
+    return if teacher? && current_user.teacher&.id == @teacher.id
+
+    render json: { error: "Forbidden: insufficient permissions" }, status: :forbidden
+  end
+
+  def generate_teacher_email(name, department_id)
+    # Clean name: remove spaces, special chars, convert to lowercase
+    clean_name = name.downcase.gsub(/[^a-z0-9]/, "")
+
+    # Get department code
+    dept = Department.find_by(id: department_id)
+    dept_code = dept&.code&.downcase || "dept"
+
+    "#{clean_name}@#{dept_code}.edu"
+  end
+
+  def ensure_unique_email(base_email)
+    email = base_email
+    counter = 1
+
+    while User.exists?(email: email)
+      # Split email into name and domain
+      name_part = base_email.split("@").first
+      domain_part = base_email.split("@").last
+      email = "#{name_part}#{counter}@#{domain_part}"
+      counter += 1
+    end
+
+    email
   end
 end
